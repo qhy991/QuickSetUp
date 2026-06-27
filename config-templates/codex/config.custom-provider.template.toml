@@ -1,0 +1,11 @@
+model = "YOUR_MODEL_NAME"
+model_provider = "my-proxy"
+
+[model_providers.my-proxy]
+name = "My Custom Gateway"
+base_url = "https://YOUR-GATEWAY-URL.example.com/v1"
+env_key = "MY_PROXY_API_KEY"
+wire_api = "responses"
+
+cli_auth_credentials_store = "file"
+check_for_update_on_startup = false

@@ -33,12 +33,31 @@ codex --version
 | `install-claude-codex.sh` | 仅安装 Claude Code 和 Codex |
 | `setup-shell-path.sh` | 写入 `~/.profile` PATH 配置 |
 | `DOWNLOAD-METHODS.md` | 外网受限时的下载与离线安装方法 |
+| `apply-config.sh` | 应用 Claude/Codex 配置模板 |
+| `CONFIG-GUIDE.zh-CN.md` | Base URL、API Key 配置说明 |
+| `config-templates/` | 可填写的 `.claude` / `.codex` 配置模板 |
+
+## 配置 Base URL 和 API Key
+
+```bash
+bash apply-config.sh              # 交互选择场景
+bash apply-config.sh claude-gateway
+bash apply-config.sh codex-proxy
+
+# 编辑占位符后生效
+vim ~/.claude/settings.json
+vim ~/.codex/config.toml
+vim ~/.codex/auth.env
+source ~/.profile
+```
+
+详细说明见 [CONFIG-GUIDE.zh-CN.md](./CONFIG-GUIDE.zh-CN.md)。
 
 ## 首次登录
 
 ```bash
-claude    # Anthropic 账号或 ANTHROPIC_API_KEY
-codex     # OpenAI 账号或 OPENAI_API_KEY
+claude    # 或在 settings.json 配置 ANTHROPIC_API_KEY / AUTH_TOKEN
+codex     # 或在 ~/.codex/auth.env 配置 OPENAI_API_KEY，或 codex login
 ```
 
 ## 环境变量（可选）

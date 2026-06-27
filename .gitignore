@@ -1,3 +1,5 @@
 *.tgz
 *.tar.xz
 .DS_Store
+auth.env
+*.bak.*
