@@ -150,6 +150,8 @@ curl -s http://127.0.0.1:4446/health
 bash scripts/stop-codex-transfer.sh
 ```
 
+> **重要：** `codex-transfer` **不会**随系统开机自动启动。机器重启后需重新执行 `bash scripts/start-codex-transfer.sh`，否则 Codex 会报 `error sending request for url (http://127.0.0.1:4446/v1/responses)`。
+
 API Key 也可通过环境变量传入（可选）：
 
 ```bash
@@ -253,7 +255,13 @@ OPENAI_API_KEY=sk-...
 
 ## 常见故障
 
-### codex-transfer not reachable on :4446
+### codex-transfer not reachable on :4446（含机器重启后）
+
+`codex-transfer` 是后台进程，**重启机器后不会自动恢复**。典型报错：
+
+```
+stream disconnected before completion: error sending request for url (http://127.0.0.1:4446/v1/responses)
+```
 
 ```bash
 bash scripts/start-codex-transfer.sh

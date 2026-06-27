@@ -65,6 +65,8 @@ bash scripts/install-codex-transfer.sh
 bash scripts/start-codex-transfer.sh
 ```
 
+> **重要：** `codex-transfer` **不会**随系统开机自动启动。机器重启后需重新执行 `bash scripts/start-codex-transfer.sh`，否则 Codex 会报 `error sending request for url (http://127.0.0.1:4446/v1/responses)`。
+
 确认代理正常：
 
 ```bash
@@ -175,7 +177,15 @@ bash apply-config.sh codex-official   # Codex OpenAI 官方
 
 ## 常见问题
 
-### codex-transfer 未启动
+### codex-transfer 未启动（含机器重启后）
+
+`codex-transfer` 是后台进程，**重启机器后不会自动恢复**。若 Codex 报错：
+
+```
+stream disconnected before completion: error sending request for url (http://127.0.0.1:4446/v1/responses)
+```
+
+执行：
 
 ```bash
 bash scripts/start-codex-transfer.sh
