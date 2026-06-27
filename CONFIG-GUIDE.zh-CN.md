@@ -66,13 +66,14 @@ Codex CLI 使用 OpenAI **Responses API**，Infini-AI 提供 **Chat Completions 
 
 ```json
 {
-  "model": "claude-opus-4-7",
+  "model": "claude-opus-4-6",
   "env": {
     "ANTHROPIC_BASE_URL": "https://cloud.infini-ai.com/maas",
-    "ANTHROPIC_MODEL": "claude-opus-4-7",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-7",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.2",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_MODEL": "claude-opus-4-6",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-6",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4-5",
+    "ANTHROPIC_SMALL_FAST_MODEL": "claude-haiku-4-5",
     "ANTHROPIC_API_KEY": "YOUR_INFINI_AI_API_KEY",
     "ANTHROPIC_AUTH_TOKEN": "YOUR_INFINI_AI_API_KEY"
   }
@@ -90,7 +91,7 @@ Codex CLI 使用 OpenAI **Responses API**，Infini-AI 提供 **Chat Completions 
 
 ```bash
 claude
-/model glm-5.2          # 或 claude-opus-4-7 / deepseek-v4-pro 等
+/model claude-sonnet-4-6    # 或 claude-opus-4-6 / claude-haiku-4-5 等
 ```
 
 ### 验证

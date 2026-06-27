@@ -109,12 +109,16 @@ https://cloud.infini-ai.com/maas     http://127.0.0.1:4446/v1
 
 ```json
 {
-  "model": "claude-opus-4-7",
+  "model": "claude-opus-4-6",
   "env": {
     "ANTHROPIC_BASE_URL": "https://cloud.infini-ai.com/maas",
     "ANTHROPIC_API_KEY": "YOUR_INFINI_AI_API_KEY",
     "ANTHROPIC_AUTH_TOKEN": "YOUR_INFINI_AI_API_KEY",
-    "ANTHROPIC_MODEL": "claude-opus-4-7"
+    "ANTHROPIC_MODEL": "claude-opus-4-6",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-6",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4-5",
+    "ANTHROPIC_SMALL_FAST_MODEL": "claude-haiku-4-5"
   }
 }
 ```
