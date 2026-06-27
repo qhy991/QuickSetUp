@@ -1,6 +1,6 @@
 # Quick
 
-Linux 用户级 AI 开发工具一键安装脚本（无需 sudo）。
+Linux 用户级 AI 开发工具一键安装与配置（无需 sudo）。
 
 适用于外网受限环境：优先使用国内镜像（npmmirror），GitHub 推荐 SSH。
 
@@ -11,9 +11,11 @@ Linux 用户级 AI 开发工具一键安装脚本（无需 sudo）。
 | **Node.js** | 用户级安装到 `~/.local/node` |
 | **Claude Code** | `@anthropic-ai/claude-code` |
 | **Codex CLI** | `@openai/codex` |
-| **codex-transfer** | Codex Responses API → Infini-AI 协议转换代理 |
+| **codex-transfer** | 本地代理：Codex Responses API → Infini-AI Chat Completions |
 
-## 快速开始
+## 完整流程（从零到可用）
+
+### 1. 安装
 
 ```bash
 git clone git@github.com:qhy991/Quick.git
@@ -25,43 +27,137 @@ claude --version
 codex --version
 ```
 
-## Infini-AI 一键配置（推荐）
-
-Claude Code 直连 Infini-AI MaaS；Codex 经本地 `codex-transfer` 代理调用 Infini-AI GenStudio。
+### 2. 应用 Infini-AI 配置
 
 ```bash
 bash apply-config.sh infini-ai
-
-# 填入 Infini-AI API Key
-vim ~/.claude/settings.json
-vim ~/.codex-transfer/config.json
-
-# 安装并启动 codex-transfer
-bash scripts/install-codex-transfer.sh
-bash scripts/start-codex-transfer.sh
-
-source ~/.profile
-claude    # /status 验证
-codex doctor
 ```
 
-详细说明见 [CONFIG-GUIDE.zh-CN.md](./CONFIG-GUIDE.zh-CN.md)。
+会写入以下文件：
+
+| 文件 | 作用 |
+|------|------|
+| `~/.claude/settings.json` | Claude Code 直连 Infini-AI |
+| `~/.codex/config.toml` | Codex 指向本地 codex-transfer |
+| `~/.codex-transfer/config.json` | codex-transfer 上游与模型映射 |
+
+### 3. 填入 API Key
+
+在 [无问芯穹控制台](https://cloud.infini-ai.com) 获取 GenStudio API Key，填入：
+
+```bash
+vim ~/.claude/settings.json          # ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN
+vim ~/.codex-transfer/config.json    # apiKey
+```
+
+两处填**同一个 Key** 即可。
+
+> **注意：** 若存在 `~/.codex-transfer/env`，不要保留 `CODEX_TRANSFER_API_KEY=YOUR_INFINI_AI_API_KEY` 占位符，否则会覆盖 `config.json` 中的真实 Key。推荐只在 `config.json` 里填写 Key，或删除 env 中的占位行。
+
+### 4. 安装并启动 codex-transfer
+
+Codex CLI 使用 OpenAI **Responses API**，Infini-AI 提供 **Chat Completions API**，二者不兼容，必须通过本地代理转换。
+
+```bash
+bash scripts/install-codex-transfer.sh
+bash scripts/start-codex-transfer.sh
+```
+
+确认代理正常：
+
+```bash
+curl -s http://127.0.0.1:4446/health
+# 期望：upstream 为 https://cloud.infini-ai.com/maas/v1，upstreamOk 为 true
+```
+
+### 5. 验证
+
+```bash
+source ~/.profile
+
+claude -p "hello" --output-format text    # Claude 直连测试
+codex doctor                              # Codex 环境检查
+codex exec "hello" < /dev/null            # Codex 经代理测试
+```
+
+Claude 交互模式下可执行 `/status`，确认 Base URL 为 `https://cloud.infini-ai.com/maas`。
+
+## 架构说明
+
+```
+Claude Code                          Codex CLI
+~/.claude/settings.json              ~/.codex/config.toml
+        │                                    │
+        │ 直连 Anthropic Messages            │ 本地 Responses API
+        ▼                                    ▼
+https://cloud.infini-ai.com/maas     http://127.0.0.1:4446/v1
+                                            │
+                                            │ codex-transfer（协议转换）
+                                            ▼
+                               https://cloud.infini-ai.com/maas/v1
+```
+
+- **Claude Code**：直连 `https://cloud.infini-ai.com/maas`（Anthropic Messages 协议，**不带** `/v1`）
+- **Codex CLI**：只连本地 `http://127.0.0.1:4446/v1`，由 codex-transfer 转发到 `https://cloud.infini-ai.com/maas/v1`
+- **Codex 不要直连 Infini-AI**，`/v1/responses` 接口不存在，会报 404
+
+## 关键配置参考
+
+### Claude（`~/.claude/settings.json`）
+
+```json
+{
+  "model": "claude-opus-4-7",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://cloud.infini-ai.com/maas",
+    "ANTHROPIC_API_KEY": "YOUR_INFINI_AI_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN": "YOUR_INFINI_AI_API_KEY",
+    "ANTHROPIC_MODEL": "claude-opus-4-7"
+  }
+}
+```
+
+### codex-transfer（`~/.codex-transfer/config.json`）
+
+```json
+{
+  "port": 4446,
+  "upstream": "https://cloud.infini-ai.com/maas/v1",
+  "apiKey": "YOUR_INFINI_AI_API_KEY",
+  "modelMap": {
+    "gpt-5.5": "glm-5.2",
+    "*": "glm-5.2"
+  }
+}
+```
+
+`modelMap` 将 Codex 请求的模型名映射到 Infini-AI 实际可用模型；`"*"` 为兜底。
+
+### Codex（`~/.codex/config.toml`）
+
+由 `apply-config.sh infini-ai` 自动写入，核心项：
+
+```toml
+model_provider = "infini_transfer"
+model = "gpt-5.5"
+base_url = "http://127.0.0.1:4446/v1"   # 在 [model_providers.infini_transfer] 下
+sandbox_mode = "danger-full-access"       # 部分 Linux 主机 bwrap 沙箱会失败
+```
 
 ## 脚本说明
 
 | 脚本 | 作用 |
 |------|------|
 | `install-ai-tools.sh` | 一键安装 Node.js + Claude Code + Codex + PATH |
+| `apply-config.sh infini-ai` | 应用 Infini-AI 配置模板（推荐） |
+| `scripts/install-codex-transfer.sh` | 安装 codex-transfer 到 `~/.local/codex-transfer` |
+| `scripts/start-codex-transfer.sh` | 启动 codex-transfer（默认 `:4446`） |
+| `scripts/stop-codex-transfer.sh` | 停止 codex-transfer |
 | `install-node.sh` | 仅安装 Node.js |
 | `install-claude-codex.sh` | 仅安装 Claude Code 和 Codex |
 | `setup-shell-path.sh` | 写入 `~/.profile` PATH 配置 |
-| `apply-config.sh` | 应用 Claude/Codex/codex-transfer 配置模板 |
-| `scripts/install-codex-transfer.sh` | 安装 codex-transfer 本地代理 |
-| `scripts/start-codex-transfer.sh` | 启动 codex-transfer（:4446） |
-| `scripts/stop-codex-transfer.sh` | 停止 codex-transfer |
-| `DOWNLOAD-METHODS.md` | 外网受限时的下载与离线安装方法 |
-| `CONFIG-GUIDE.zh-CN.md` | Base URL、API Key、模型映射配置说明 |
-| `config-templates/` | 可填写的 `.claude` / `.codex` / `.codex-transfer` 配置模板 |
+
+更多配置场景与故障排查见 [CONFIG-GUIDE.zh-CN.md](./CONFIG-GUIDE.zh-CN.md)。
 
 ## 其他配置场景
 
@@ -71,22 +167,35 @@ bash apply-config.sh codex-proxy      # Codex 自定义 Base URL
 bash apply-config.sh codex-official   # Codex OpenAI 官方
 ```
 
-## 首次登录
+## 常见问题
+
+### codex-transfer 未启动
 
 ```bash
-claude    # 或在 settings.json 配置 ANTHROPIC_API_KEY / AUTH_TOKEN
-codex     # infini-ai 场景需先启动 codex-transfer
+bash scripts/start-codex-transfer.sh
+curl -s http://127.0.0.1:4446/health
 ```
+
+### Codex 报 404 / 405
+
+- 确认 `~/.codex/config.toml` 中 `base_url` 为 `http://127.0.0.1:4446/v1`，不是 Infini-AI 地址
+- 确认 `~/.codex-transfer/config.json` 中 `upstream` 为 `https://cloud.infini-ai.com/maas/v1`
+
+### API Key 不生效
+
+检查 `~/.codex-transfer/env` 是否残留占位符 `YOUR_INFINI_AI_API_KEY`，它会覆盖 `config.json`。
+
+### Codex STALL（bwrap 沙箱失败）
+
+在 `~/.codex/config.toml` 设置 `sandbox_mode = "danger-full-access"`（infini-ai 模板已包含）。
 
 ## 环境变量（可选）
 
 ```bash
-NODE_VERSION=22.16.0          # Node.js 版本
+NODE_VERSION=22.16.0
 NODE_MIRROR=https://npmmirror.com/mirrors/node
 NPM_REGISTRY=https://registry.npmmirror.com
-CLAUDE_VERSION=latest
-CODEX_VERSION=latest
-CODEX_TRANSFER_API_KEY=sk-... # codex-transfer 启动用（也可写在 config.json）
+CODEX_TRANSFER_UPSTREAM=https://cloud.infini-ai.com/maas/v1   # 覆盖 upstream
 ```
 
 ## 离线安装
