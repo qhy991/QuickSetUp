@@ -1,38 +1,36 @@
 # Claude Code & Codex 配置指南
 
-填写模板 → 复制到 `~/.claude` / `~/.codex` → 即可使用。
+填写模板 → 复制到 `~/.claude` / `~/.codex` / `~/.codex-transfer` → 启动代理 → 即可使用。
 
 ## 配置文件位置
 
 | 工具 | 配置文件 | 说明 |
 |------|----------|------|
 | **Claude Code** | `~/.claude/settings.json` | 全局设置，含 `env` 块 |
-| **Codex CLI** | `~/.codex/config.toml` | 模型、Base URL、Provider |
-| **Codex API Key** | `~/.codex/auth.env` | 密钥（由 `apply-config.sh` 自动加载） |
+| **Codex CLI** | `~/.codex/config.toml` | 模型、Provider、沙箱 |
+| **codex-transfer** | `~/.codex-transfer/config.json` | 本地代理：Responses API → Infini-AI |
+| **Codex API Key** | `~/.codex/auth.env` | 直连 OpenAI/代理场景用（infini-ai 场景不需要） |
 
 项目级配置（可选）：
 - Claude: 项目内 `.claude/settings.json` 或 `.claude/settings.local.json`
-- Codex: 项目内 `.codex/config.toml`（需信任项目；**不能**覆盖 `openai_base_url` 等机器级密钥）
+- Codex: 项目内 `.codex/config.toml`（需信任项目）
 
 ---
 
-## 快速开始
+## 快速开始（Infini-AI，推荐）
 
 ```bash
-cd Quick   # 或 git clone 后的目录
+cd Quick
 
-# 交互选择场景并应用模板
-bash apply-config.sh
-
-# 或直接指定场景
-bash apply-config.sh infini-ai        # Infini-AI MaaS（推荐）
-bash apply-config.sh claude-gateway   # Claude 第三方网关
-bash apply-config.sh codex-proxy      # Codex 自定义 Base URL
+bash apply-config.sh infini-ai
 
 # 编辑占位符
 vim ~/.claude/settings.json
-vim ~/.codex/config.toml
-vim ~/.codex/auth.env
+vim ~/.codex-transfer/config.json
+
+# 安装并启动 codex-transfer
+bash scripts/install-codex-transfer.sh
+bash scripts/start-codex-transfer.sh
 
 source ~/.profile
 claude    # 内执行 /status 验证
@@ -41,53 +39,160 @@ codex doctor
 
 ---
 
-## Infini-AI MaaS（推荐）
+## Infini-AI GenStudio 架构
 
-Base URL：`https://cloud.infini-ai.com/maas/v1`
-
-一键配置：
-
-```bash
-bash apply-config.sh infini-ai
-vim ~/.claude/settings.json    # 填写 ANTHROPIC_AUTH_TOKEN
-vim ~/.codex/auth.env          # 填写 OPENAI_API_KEY（Infini-AI 平台 API Key）
-source ~/.profile
+```
+Claude Code                          Codex CLI
+~/.claude/settings.json              ~/.codex/config.toml
+        │                                    │
+        │ 直连                               │ 本地代理
+        ▼                                    ▼
+https://cloud.infini-ai.com/maas     http://127.0.0.1:4446/v1
+                                            │
+                                            │ codex-transfer
+                                            ▼
+                               https://cloud.infini-ai.com/mass/coding
 ```
 
-**Claude Code**（`~/.claude/settings.json`）：
+**为什么 Codex 需要 codex-transfer？**
+
+Codex CLI 使用 OpenAI **Responses API**，Infini-AI 提供 **Chat Completions API**。`codex-transfer` 在本地做协议转换，Codex 只需指向 `http://127.0.0.1:4446/v1`。
+
+---
+
+## Claude Code（Infini-AI）
+
+模板：`config-templates/claude/settings.infini-ai.template.json`
 
 ```json
 {
+  "model": "claude-opus-4-7",
   "env": {
-    "ANTHROPIC_BASE_URL": "https://cloud.infini-ai.com/maas/v1",
-    "ANTHROPIC_AUTH_TOKEN": "你的Infini-AI-API-Key",
-    "ANTHROPIC_MODEL": "claude-sonnet-4-6"
+    "ANTHROPIC_BASE_URL": "https://cloud.infini-ai.com/maas",
+    "ANTHROPIC_MODEL": "claude-opus-4-7",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-7",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.2",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_API_KEY": "YOUR_INFINI_AI_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN": "YOUR_INFINI_AI_API_KEY"
   }
 }
 ```
 
-**Codex**（`~/.codex/config.toml` + `~/.codex/auth.env`）：
+| 字段 | 说明 |
+|------|------|
+| `ANTHROPIC_BASE_URL` | Infini-AI MaaS 地址（**不带** `/v1` 后缀） |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | Infini-AI 平台 API Key |
+| `ANTHROPIC_MODEL` | 默认主模型 |
+| `ANTHROPIC_DEFAULT_*_MODEL` | Opus / Sonnet / Haiku 档位默认模型 |
 
-```toml
-openai_base_url = "https://cloud.infini-ai.com/maas/v1"
-model = "gpt-5.3-codex"
-model_provider = "openai"
-```
+### 切换 Claude 主模型
 
 ```bash
-OPENAI_API_KEY=你的Infini-AI-API-Key
+claude
+/model glm-5.2          # 或 claude-opus-4-7 / deepseek-v4-pro 等
 ```
 
-模板文件：
-- `config-templates/claude/settings.infini-ai.template.json`
-- `config-templates/codex/config.infini-ai.template.toml`
-- `config-templates/codex/auth.infini-ai.env.template`
+### 验证
+
+```bash
+claude
+/status    # 查看当前 Base URL 和认证来源
+```
 
 ---
 
-## Claude Code 配置
+## Codex（Infini-AI，经 codex-transfer）
 
-官方文档：[Settings](https://code.claude.com/docs/en/settings) · [LLM Gateway](https://code.claude.com/docs/en/llm-gateway-connect) · [Env Vars](https://code.claude.com/docs/en/env-vars)
+### 1. 安装 codex-transfer
+
+```bash
+bash scripts/install-codex-transfer.sh
+```
+
+### 2. 配置 `~/.codex-transfer/config.json`
+
+模板：`config-templates/codex-transfer/config.template.json`
+
+```json
+{
+  "port": 4446,
+  "upstream": "https://cloud.infini-ai.com/mass/coding",
+  "apiKey": "YOUR_INFINI_AI_API_KEY",
+  "insecure": false,
+  "reasoningEffort": true,
+  "modelMap": {
+    "claude-opus-4-7": "claude-opus-4-7",
+    "glm-5.2": "glm-5.2",
+    "gpt-5.5": "gpt-5.5",
+    "gpt-5.2": "glm-5.2",
+    "deepseek-v4-flash": "deepseek-v4-flash",
+    "deepseek-v4-pro": "deepseek-v4-pro",
+    "*": "glm-5.2"
+  }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `upstream` | Infini-AI GenStudio Coding API 地址 |
+| `apiKey` | Infini-AI API Key |
+| `modelMap` | Codex 请求的模型名 → Infini-AI 实际模型 |
+| `"*"` | 兜底映射 |
+
+### 3. 启动 / 停止
+
+```bash
+bash scripts/start-codex-transfer.sh
+curl -s http://127.0.0.1:4446/health
+
+bash scripts/stop-codex-transfer.sh
+```
+
+API Key 也可通过环境变量传入（可选）：
+
+```bash
+export CODEX_TRANSFER_API_KEY=YOUR_INFINI_AI_API_KEY
+bash scripts/start-codex-transfer.sh
+```
+
+### 4. 配置 `~/.codex/config.toml`
+
+模板：`config-templates/codex/config.infini-transfer.template.toml`
+
+```toml
+model_provider = "infini_transfer"
+model = "gpt-5.5"
+review_model = "gpt-5.5"
+model_reasoning_effort = "high"
+disable_response_storage = true
+network_access = "enabled"
+sandbox_mode = "danger-full-access"
+
+[model_providers.infini_transfer]
+name = "Infini-AI GenStudio via codex-transfer"
+base_url = "http://127.0.0.1:4446/v1"
+wire_api = "responses"
+requires_openai_auth = false
+```
+
+| 字段 | 说明 |
+|------|------|
+| `base_url` | **必须** 指向本地 codex-transfer，不要写 Infini-AI 直连 |
+| `sandbox_mode` | 部分 Linux 主机 bwrap 沙箱会失败，需设为 `danger-full-access` |
+| `[projects.*]` | 工作区路径加 `trust_level = "trusted"`（按需手动添加） |
+
+### 验证
+
+```bash
+bash scripts/start-codex-transfer.sh
+codex doctor
+codex -p "hello"
+```
+
+---
+
+## 其他 Claude 场景
 
 ### 场景 A：第三方网关（自定义 Base URL）
 
@@ -103,13 +208,6 @@ OPENAI_API_KEY=你的Infini-AI-API-Key
 }
 ```
 
-| 变量 | 用途 |
-|------|------|
-| `ANTHROPIC_BASE_URL` | 网关地址 |
-| `ANTHROPIC_AUTH_TOKEN` | Bearer Token（网关场景） |
-| `ANTHROPIC_API_KEY` | 直连 Anthropic 官方时用（见场景 B） |
-| `ANTHROPIC_MODEL` | 默认模型 |
-
 ### 场景 B：Anthropic 官方 API
 
 模板：`config-templates/claude/settings.official-api.template.json`
@@ -122,24 +220,11 @@ OPENAI_API_KEY=你的Infini-AI-API-Key
 }
 ```
 
-### 验证
-
-```bash
-claude
-/status    # 查看当前 Base URL 和认证来源
-```
-
-### 已有插件配置时
-
-若 `~/.claude/settings.json` 里已有插件（如 marketplace），**只合并 `env` 块**，不要覆盖整个文件。`apply-config.sh` 会自动合并。
-
 ---
 
-## Codex CLI 配置
+## 其他 Codex 场景
 
-官方文档：[Config Advanced](https://developers.openai.com/codex/config-advanced) · [Config Reference](https://developers.openai.com/codex/config-reference) · [Auth](https://developers.openai.com/codex/auth)
-
-### 场景 A：OpenAI 官方 + 自定义 Base URL（代理/网关）
+### OpenAI 官方 + 自定义 Base URL
 
 模板：`config-templates/codex/config.openai-proxy.template.toml`
 
@@ -147,10 +232,7 @@ claude
 openai_base_url = "https://your-proxy.example.com/v1"
 model = "gpt-5.3-codex"
 model_provider = "openai"
-cli_auth_credentials_store = "file"
 ```
-
-> **注意：** 自定义 OpenAI Base URL 用顶层 `openai_base_url`，**不要**创建 `[model_providers.openai]`。
 
 API Key 写在 `~/.codex/auth.env`：
 
@@ -158,78 +240,61 @@ API Key 写在 `~/.codex/auth.env`：
 OPENAI_API_KEY=sk-...
 ```
 
-### 场景 B：OpenAI 官方 API
+### OpenAI 官方 API
 
 模板：`config-templates/codex/config.official-api.template.toml`
 
-```toml
-model = "gpt-5.3-codex"
-model_provider = "openai"
-```
-
-Key 同样放在 `~/.codex/auth.env`。
-
-### 场景 C：完全自定义 Provider
+### 完全自定义 Provider
 
 模板：`config-templates/codex/config.custom-provider.template.toml`
 
-```toml
-model = "your-model"
-model_provider = "my-proxy"
-
-[model_providers.my-proxy]
-base_url = "https://gateway.example.com/v1"
-env_key = "MY_PROXY_API_KEY"
-wire_api = "responses"
-```
-
-`~/.codex/auth.env`：
-
-```bash
-MY_PROXY_API_KEY=your-key
-```
-
-### 登录方式（二选一）
-
-| 方式 | 命令 | 凭证位置 |
-|------|------|----------|
-| API Key（推荐无头服务器） | 配置 `auth.env` | 环境变量 |
-| 交互登录 | `codex login` | `~/.codex/auth.json` |
-| ChatGPT 订阅 | `codex login` 选 ChatGPT | `~/.codex/auth.json` |
-
-### 验证
-
-```bash
-source ~/.profile
-codex doctor
-codex -p "hello"
-```
-
 ---
 
-## 环境变量速查
+## 常见故障
 
-### Claude Code（也可写在 shell，但 settings.json 更持久）
-
-```bash
-export ANTHROPIC_BASE_URL="https://gateway.example.com"
-export ANTHROPIC_AUTH_TOKEN="your-token"
-# 或
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
-
-### Codex
+### codex-transfer not reachable on :4446
 
 ```bash
-export OPENAI_API_KEY="sk-..."
-# openai_base_url 请写在 ~/.codex/config.toml，不要依赖已弃用的 OPENAI_BASE_URL
+bash scripts/start-codex-transfer.sh
+curl -s http://127.0.0.1:4446/health
 ```
+
+确认 `~/.codex-transfer/config.json` 中 `apiKey` 已填写，或已 `export CODEX_TRANSFER_API_KEY`。
+
+### Codex STALL（bwrap 沙箱）
+
+```
+bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+```
+
+在 `~/.codex/config.toml` 设置：
+
+```toml
+sandbox_mode = "danger-full-access"
+```
+
+### Claude 仍走 Anthropic 官方
+
+检查 `~/.claude/settings.json`：
+
+```json
+"ANTHROPIC_BASE_URL": "https://cloud.infini-ai.com/maas"
+```
+
+修改后**重启 Claude Code**。
+
+### Review 用了错误模型
+
+检查链路：
+
+1. `~/.codex/config.toml` → `model` / `review_model`
+2. `~/.codex-transfer/config.json` → `modelMap`
 
 ---
 
 ## 安全提醒
 
-- `~/.codex/auth.env`、`~/.codex/auth.json`、`~/.claude/settings.json` 含密钥，**勿提交 Git**
+- `~/.codex-transfer/config.json`、`~/.claude/settings.json` 含密钥，**勿提交 Git**
 - 项目级 `.claude/settings.local.json` 应加入 `.gitignore`
 - 安装完成后可删除本地含真实 Key 的备份文件（`*.bak.*`）
 
@@ -240,11 +305,17 @@ export OPENAI_API_KEY="sk-..."
 ```
 config-templates/
 ├── claude/
-│   ├── settings.gateway.template.json      # 第三方网关
-│   └── settings.official-api.template.json # Anthropic 官方
-└── codex/
-    ├── config.openai-proxy.template.toml   # OpenAI + 自定义 URL
-    ├── config.official-api.template.toml   # OpenAI 官方
-    ├── config.custom-provider.template.toml# 自定义 Provider
-    └── auth.env.template                   # API Key
+│   ├── settings.infini-ai.template.json      # Infini-AI MaaS（推荐）
+│   ├── settings.gateway.template.json        # 第三方网关
+│   └── settings.official-api.template.json   # Anthropic 官方
+├── codex/
+│   ├── config.infini-transfer.template.toml  # Infini-AI + codex-transfer（推荐）
+│   ├── config.infini-ai.template.toml        # 直连 maas/v1（可能不兼容 Responses API）
+│   ├── config.openai-proxy.template.toml     # OpenAI + 自定义 URL
+│   ├── config.official-api.template.toml     # OpenAI 官方
+│   ├── config.custom-provider.template.toml  # 自定义 Provider
+│   └── auth.env.template                     # API Key
+└── codex-transfer/
+    ├── config.template.json                  # 本地代理配置
+    └── env.template                          # 可选环境变量
 ```

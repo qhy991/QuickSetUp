@@ -1,0 +1,16 @@
+{
+  "port": 4446,
+  "upstream": "https://cloud.infini-ai.com/mass/coding",
+  "apiKey": "YOUR_INFINI_AI_API_KEY",
+  "insecure": false,
+  "reasoningEffort": true,
+  "modelMap": {
+    "claude-opus-4-7": "claude-opus-4-7",
+    "glm-5.2": "glm-5.2",
+    "gpt-5.5": "gpt-5.5",
+    "gpt-5.2": "glm-5.2",
+    "deepseek-v4-flash": "deepseek-v4-flash",
+    "deepseek-v4-pro": "deepseek-v4-pro",
+    "*": "glm-5.2"
+  }
+}

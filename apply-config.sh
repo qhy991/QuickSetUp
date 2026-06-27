@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 将填写好的配置模板应用到 ~/.claude 和 ~/.codex
+# 将填写好的配置模板应用到 ~/.claude、~/.codex 和 ~/.codex-transfer
 # 用法:
 #   bash apply-config.sh                    # 交互选择场景
 #   bash apply-config.sh claude-gateway     # Claude 第三方网关
@@ -7,7 +7,7 @@
 #   bash apply-config.sh codex-proxy          # Codex + 自定义 openai_base_url
 #   bash apply-config.sh codex-official       # Codex 官方 OpenAI
 #   bash apply-config.sh codex-custom         # Codex 自定义 model_provider
-#   bash apply-config.sh infini-ai            # Infini-AI MaaS（推荐）
+#   bash apply-config.sh infini-ai            # Infini-AI MaaS（Claude 直连 + Codex 经 codex-transfer）
 
 set -euo pipefail
 
@@ -15,6 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/config-templates"
 CLAUDE_DIR="$HOME/.claude"
 CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"
+CODEX_TRANSFER_DIR="$HOME/.codex-transfer"
 PROFILE="$HOME/.profile"
 MARKER="# codex-auth-env"
 
@@ -28,12 +29,13 @@ usage() {
   codex-proxy       Codex + openai_base_url 代理
   codex-official    Codex + OpenAI 官方 API
   codex-custom      Codex + 自定义 model_providers
-  infini-ai         Infini-AI MaaS (Claude Code + Codex 一键配置)
+  infini-ai         Infini-AI GenStudio（推荐：Claude 直连 + Codex 经 codex-transfer）
 
 模板目录: $TEMPLATE_DIR
 目标:
-  Claude -> $CLAUDE_DIR/settings.json
-  Codex    -> $CODEX_DIR/config.toml + $CODEX_DIR/auth.env
+  Claude         -> $CLAUDE_DIR/settings.json
+  Codex          -> $CODEX_DIR/config.toml
+  codex-transfer -> $CODEX_TRANSFER_DIR/config.json
 EOF
 }
 
@@ -56,9 +58,11 @@ import json, pathlib
 src = json.loads(pathlib.Path("$src").read_text())
 dst_path = pathlib.Path("$CLAUDE_DIR/settings.json")
 dst = json.loads(dst_path.read_text())
+if "model" in src:
+    dst["model"] = src["model"]
 dst.setdefault("env", {}).update(src.get("env", {}))
 dst_path.write_text(json.dumps(dst, indent=2, ensure_ascii=False) + "\n")
-print("已合并 env 到现有 settings.json（保留插件等配置）")
+print("已合并 model/env 到现有 settings.json（保留插件等配置）")
 PY
   else
     echo "警告: 已有 settings.json 且无 python3，请手动合并 env 块"
@@ -89,6 +93,20 @@ EOF
   fi
 }
 
+apply_codex_transfer_config() {
+  mkdir -p "$CODEX_TRANSFER_DIR/logs"
+  if [[ ! -f "$CODEX_TRANSFER_DIR/config.json" ]]; then
+    cp "$TEMPLATE_DIR/codex-transfer/config.template.json" "$CODEX_TRANSFER_DIR/config.json"
+    echo "已创建 $CODEX_TRANSFER_DIR/config.json — 请编辑填入 YOUR_INFINI_AI_API_KEY"
+  else
+    echo "保留已有 $CODEX_TRANSFER_DIR/config.json"
+  fi
+  if [[ ! -f "$CODEX_TRANSFER_DIR/env" ]]; then
+    cp "$TEMPLATE_DIR/codex-transfer/env.template" "$CODEX_TRANSFER_DIR/env"
+    echo "已创建 $CODEX_TRANSFER_DIR/env（可选）"
+  fi
+}
+
 pick="${1:-}"
 
 if [[ -z "$pick" ]]; then
@@ -99,7 +117,7 @@ if [[ -z "$pick" ]]; then
   echo "  4) codex-official"
   echo "  5) codex-custom"
   echo "  6) 全部 (claude-gateway + codex-proxy)"
-  echo "  7) infini-ai (Infini-AI MaaS，推荐)"
+  echo "  7) infini-ai (Infini-AI GenStudio，推荐)"
   read -rp "输入编号 [1-7]: " n
   case "$n" in
     1) pick=claude-gateway ;;
@@ -149,9 +167,11 @@ apply_infini_ai() {
   merge_claude_env "$TEMPLATE_DIR/claude/settings.infini-ai.template.json"
   mkdir -p "$CODEX_DIR"
   backup "$CODEX_DIR/config.toml"
-  cp "$TEMPLATE_DIR/codex/config.infini-ai.template.toml" "$CODEX_DIR/config.toml"
-  apply_codex_auth_env "$TEMPLATE_DIR/codex/auth.infini-ai.env.template"
-  echo "已配置 Infini-AI MaaS: https://cloud.infini-ai.com/maas/v1"
+  cp "$TEMPLATE_DIR/codex/config.infini-transfer.template.toml" "$CODEX_DIR/config.toml"
+  apply_codex_transfer_config
+  echo "已配置 Infini-AI:"
+  echo "  Claude -> https://cloud.infini-ai.com/maas"
+  echo "  Codex  -> http://127.0.0.1:4446/v1 (codex-transfer -> Infini-AI mass/coding)"
 }
 
 case "$pick" in
@@ -173,11 +193,15 @@ cat <<EOF
 
 下一步:
   1. 编辑配置文件，替换 YOUR_* 占位符
-     Claude: $CLAUDE_DIR/settings.json
-     Codex:  $CODEX_DIR/config.toml 和 $CODEX_DIR/auth.env
-  2. source ~/.profile
-  3. claude --version && codex doctor
-  4. Claude 内执行 /status 验证网关和认证
+     Claude:         $CLAUDE_DIR/settings.json
+     Codex:          $CODEX_DIR/config.toml
+     codex-transfer: $CODEX_TRANSFER_DIR/config.json
+  2. 安装并启动 codex-transfer（infini-ai 场景必需）:
+     bash $SCRIPT_DIR/scripts/install-codex-transfer.sh
+     bash $SCRIPT_DIR/scripts/start-codex-transfer.sh
+  3. source ~/.profile
+  4. claude --version && codex doctor
+  5. Claude 内执行 /status 验证网关和认证
 
 详细说明: CONFIG-GUIDE.zh-CN.md
 EOF

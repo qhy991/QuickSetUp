@@ -1,0 +1,23 @@
+# Codex 经本地 codex-transfer 代理连接 Infini-AI GenStudio
+# 先运行: bash scripts/install-codex-transfer.sh && bash scripts/start-codex-transfer.sh
+
+model_provider = "infini_transfer"
+model = "gpt-5.5"
+review_model = "gpt-5.5"
+model_reasoning_effort = "high"
+disable_response_storage = true
+network_access = "enabled"
+check_for_update_on_startup = false
+
+# 部分 Linux 容器/共享主机上 bwrap 沙箱会失败，Codex review 会 STALL
+sandbox_mode = "danger-full-access"
+
+[model_providers.infini_transfer]
+name = "Infini-AI GenStudio via codex-transfer"
+base_url = "http://127.0.0.1:4446/v1"
+wire_api = "responses"
+requires_openai_auth = false
+
+[features]
+goals = true
+hooks = true
